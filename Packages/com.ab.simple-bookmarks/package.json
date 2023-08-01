@@ -1,0 +1,16 @@
+{
+  "name": "com.ab.simple-bookmarks",
+  "version": "0.1.0",
+  "displayName": "Simple Bookmarks",
+  "description": "This is a bookmark exetension",
+  "dependencies": {
+ },
+ "keywords": [
+    "bookmarks",
+    "favorites"
+  ],
+  "author": {
+    "name": "ab",
+    "email": "abao883@gmail.com",
+  }
+}
