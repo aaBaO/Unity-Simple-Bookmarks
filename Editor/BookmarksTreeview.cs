@@ -79,8 +79,6 @@ namespace SimpleBookmarks.Editor
             return new MultiColumnHeaderState(columns);
         }
         
-        
-
         public BookmarksTreeView(TreeViewState state, MultiColumnHeader multiColumnHeader, BookmarksContainer container) : base(state, multiColumnHeader)
         {
             _bookmarksContainer = container;
@@ -95,7 +93,6 @@ namespace SimpleBookmarks.Editor
             
             Reload();
         }
-
 
         protected override TreeViewItem BuildRoot()
         {
@@ -122,7 +119,7 @@ namespace SimpleBookmarks.Editor
                 {
                     groupItem.AddChild(new ObjectViewItem()
                     {
-                        id = item.obj ? item.obj.GetInstanceID() : int.MinValue,
+                        id = item.Obj ? item.Obj.GetInstanceID() : int.MinValue,
                         Data = item
                     });
                 }
@@ -144,9 +141,9 @@ namespace SimpleBookmarks.Editor
             return item switch
             {
                 GroupViewItem groupViewItem => _searchRegex.IsMatch(groupViewItem.Data.name),
-                ObjectViewItem objectViewItem => objectViewItem.Data.obj
-                           && (_searchRegex.IsMatch(objectViewItem.Data.obj.name) ||
-                               _searchRegex.IsMatch(AssetDatabase.GetAssetPath(objectViewItem.Data.obj))),
+                ObjectViewItem objectViewItem => objectViewItem.Data.Obj
+                           && (_searchRegex.IsMatch(objectViewItem.Data.Obj.name) ||
+                               _searchRegex.IsMatch(AssetDatabase.GetAssetPath(objectViewItem.Data.Obj))),
                 _ => base.DoesItemMatchSearch(item, search)
             };
         }
@@ -208,7 +205,7 @@ namespace SimpleBookmarks.Editor
             switch (guiArgs.item)
             {
                 case GroupViewItem groupViewItem:
-                    genericMenu.AddItem(GUIConst.RenameGroupMenuItem, false, () => BeginRename(guiArgs.item));
+                    genericMenu.AddItem(GUIConst.RenameGroupMenuItem, false, () => BeginRename(groupViewItem));
                     genericMenu.AddItem(GUIConst.AddGroupMenuItem, false, () =>
                     {
                         _bookmarksContainer.AddGroup(new()
@@ -269,11 +266,11 @@ namespace SimpleBookmarks.Editor
                             var objectRect = rect;
                             objectRect.x += indent;
                             objectRect.width = rect.width - indent;
-                            objectViewItem.Data.obj = EditorGUI.ObjectField(objectRect, objectViewItem.Data.obj, typeof(UnityEngine.Object), false);
+                            objectViewItem.Data.Obj = EditorGUI.ObjectField(objectRect, objectViewItem.Data.Obj, typeof(UnityEngine.Object), false);
                         }
                             break;
                         case EColumns.AssetPath:
-                            EditorGUI.SelectableLabel(rect, AssetDatabase.GetAssetPath(objectViewItem.Data.obj), EditorStyles.textField);
+                            EditorGUI.SelectableLabel(rect, AssetDatabase.GetAssetPath(objectViewItem.Data.Obj), EditorStyles.textField);
                             break;
                         case EColumns.Note:
                             objectViewItem.Data.note = EditorGUI.TextField(rect, objectViewItem.Data.note);
@@ -320,7 +317,7 @@ namespace SimpleBookmarks.Editor
 
             var items = draggedItems.ToList();
             DragAndDrop.SetGenericData(DragGenericLabel, items);
-            DragAndDrop.StartDrag(draggedItems.Count > 1 ? "<Multiple>" : items[0].obj.name);
+            DragAndDrop.StartDrag(draggedItems.Count > 1 ? "<Multiple>" : items[0].Obj.name);
         }
         
         protected override DragAndDropVisualMode HandleDragAndDrop(DragAndDropArgs args)
@@ -349,7 +346,7 @@ namespace SimpleBookmarks.Editor
                                 {
                                     foreach (var obj in DragAndDrop.objectReferences)
                                     {
-                                        if (g.items[i].Equals(new Item() { obj = obj }))
+                                        if (g.items[i].Equals(new Item() { Obj = obj }))
                                             g.items.RemoveAt(i);
                                     }
                                 }
@@ -372,7 +369,7 @@ namespace SimpleBookmarks.Editor
                                 for (var i = 0; i < DragAndDrop.objectReferences.Length; i++)
                                 {
                                     var preferIndex = GetPreferIndex(parentItem.Data.items, insertIndex + i);
-                                    parentItem.Data.items.Insert(preferIndex, new Item() { obj = DragAndDrop.objectReferences[i] });
+                                    parentItem.Data.items.Insert(preferIndex, new Item() { Obj = DragAndDrop.objectReferences[i] });
                                 }
                             }
                         }
@@ -381,7 +378,7 @@ namespace SimpleBookmarks.Editor
                             if (dragFromTreeView)
                                 parentItem.Data.items.AddRange(draggedItems);
                             else
-                                parentItem.Data.items.AddRange(DragAndDrop.objectReferences.Select(o=> new Item(){obj = o}));
+                                parentItem.Data.items.AddRange(DragAndDrop.objectReferences.Select(o=> new Item(){Obj = o}));
                         }
                         
                         _bookmarksContainer.Save();
@@ -435,6 +432,8 @@ namespace SimpleBookmarks.Editor
             }
 
             targetItem.Data.name = targetItem.displayName = args.newName;
+            
+            _bookmarksContainer.Save();
         }
 
         protected override Rect GetRenameRect(Rect rowRect, int row, TreeViewItem item)

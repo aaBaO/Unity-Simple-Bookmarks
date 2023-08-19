@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using UnityEditor;
 using UnityEngine;
 
 namespace SimpleBookmarks.Editor
@@ -86,11 +87,11 @@ namespace SimpleBookmarks.Editor
     }
 
     [Serializable]
-    internal class Item
+    internal class Item : ISerializationCallbackReceiver
     {
         protected bool Equals(Item other)
         {
-            return Equals(obj, other.obj);
+            return Equals(Obj, other.Obj);
         }
 
         public override bool Equals(object obj)
@@ -103,10 +104,27 @@ namespace SimpleBookmarks.Editor
 
         public override int GetHashCode()
         {
-            return (obj != null ? obj.GetHashCode() : 0);
+            return Obj != null ? Obj.GetHashCode() : 0;
         }
 
-        public UnityEngine.Object obj;
+        [NonSerialized]
+        public UnityEngine.Object Obj;
         public string note;
+        public string objectGuid;
+        
+        public void OnBeforeSerialize()
+        {
+            if(Obj == null) return;
+            if(!AssetDatabase.TryGetGUIDAndLocalFileIdentifier(Obj, out objectGuid, out long _))
+                Debug.LogError($"Could not get guid for object {Obj}");
+        }
+
+        public void OnAfterDeserialize()
+        {
+            var path = AssetDatabase.GUIDToAssetPath(objectGuid);
+            if (string.IsNullOrEmpty(path))
+                Debug.LogError($"{objectGuid} is not a valid Guid. Note:{note}");
+            Obj = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(path);
+        }
     }
 }
