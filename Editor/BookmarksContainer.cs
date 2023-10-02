@@ -124,7 +124,10 @@ namespace SimpleBookmarks.Editor
             var path = AssetDatabase.GUIDToAssetPath(objectGuid);
             if (string.IsNullOrEmpty(path))
                 Debug.LogError($"{objectGuid} is not a valid Guid. Note:{note}");
-            Obj = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(path);
+            if (AssetDatabase.IsValidFolder(path)) 
+                Obj = AssetDatabase.LoadAssetAtPath<DefaultAsset>(path);
+            else 
+                Obj = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(path);
         }
     }
 }

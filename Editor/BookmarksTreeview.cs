@@ -1,10 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditor.IMGUI.Controls;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace SimpleBookmarks.Editor 
 {
@@ -106,7 +109,7 @@ namespace SimpleBookmarks.Editor
             
             foreach (var group in _bookmarksContainer.groups)
             {
-                var groupItem = new GroupViewItem() 
+                var groupItem = new GroupViewItem
                 {
                     id = group.GetHashCode(),
                     displayName = group.name,
@@ -117,17 +120,61 @@ namespace SimpleBookmarks.Editor
                 
                 foreach (var item in group.items)
                 {
-                    groupItem.AddChild(new ObjectViewItem()
+                    var objectViewItem = new ObjectViewItem
                     {
                         id = item.Obj ? item.Obj.GetInstanceID() : int.MinValue,
                         Data = item
-                    });
+                    };
+                    groupItem.AddChild(objectViewItem);
+
+                    var assetPath = AssetDatabase.GetAssetPath(item.Obj);
+                    if (AssetDatabase.IsValidFolder(assetPath))
+                    {
+                        AddFolderAssetsRecursive(objectViewItem, assetPath);
+                    }
                 }
             }
             
             SetupDepthsFromParentsAndChildren(root);
             
             return base.BuildRows(root);
+        }
+        
+        private void AddFolderAssetsRecursive(TreeViewItem parent, string folderPath)
+        {
+            var dir = new DirectoryInfo(folderPath);
+            var files = dir.GetFiles().Where(p=>!p.Extension.Equals(".meta"));
+            foreach (var f in files)
+            {
+                var p = Path.GetRelativePath($"{Application.dataPath}/../", f.FullName);
+                var obj = AssetDatabase.LoadAssetAtPath<Object>(p);
+                if (obj == null) 
+                    continue;
+                var viewItem = new SubObjectViewItem(obj)
+                {
+                    id = GUID.Generate().GetHashCode(),
+                    displayName = obj.name
+                };
+                parent.AddChild(viewItem);
+            }
+
+            var subDirs = dir.GetDirectories();
+            foreach (var d in subDirs)
+            {
+                var p = Path.GetRelativePath($"{Application.dataPath}/../", d.FullName);
+                if (!AssetDatabase.IsValidFolder(p))
+                    continue;
+                var folder = AssetDatabase.LoadAssetAtPath<DefaultAsset>(p);
+                if (folder == null) 
+                    continue;
+                var viewItem = new SubObjectViewItem(folder)
+                {
+                    id = folder.GetHashCode(),
+                    displayName = folder.name
+                };
+                parent.AddChild(viewItem);
+                AddFolderAssetsRecursive(viewItem, p);
+            }
         }
 
         protected override void SearchChanged(string newSearch)
@@ -170,7 +217,7 @@ namespace SimpleBookmarks.Editor
                 _bookmarksContainer.Save();
             }
         }
-
+        
         protected override void ContextClicked()
         {
             var genericMenu = new GenericMenu();
@@ -190,7 +237,7 @@ namespace SimpleBookmarks.Editor
             {
                 var path = $"{Application.dataPath}/../{BookmarksContainer.DataPath}";
 #if UNITY_EDITOR_WIN
-                System.Diagnostics.Process.Start("explorer.exe", $"/select,{path.Replace("/", "\\")}");
+                Process.Start("explorer.exe", $"/select,{path.Replace("/", "\\")}");
 #else
                 System.Diagnostics.Process.Start("open", $"{path}");
 #endif
@@ -245,13 +292,11 @@ namespace SimpleBookmarks.Editor
                     switch (columns)
                     {
                         case EColumns.Object:
-                        {
                             var objectRect = rect;
                             objectRect.x += indent;
                             objectRect.width = rect.width - indent;
                             EditorGUI.LabelField(objectRect, groupViewItem.Data.name, EditorStyles.boldLabel);
                             args.rowRect = rect;
-                        }
                             break;
                         case EColumns.Note:
                             groupViewItem.Data.note = EditorGUI.TextField(rect, groupViewItem.Data.note);
@@ -262,12 +307,10 @@ namespace SimpleBookmarks.Editor
                     switch (columns)
                     {
                         case EColumns.Object:
-                        {
                             var objectRect = rect;
                             objectRect.x += indent;
                             objectRect.width = rect.width - indent;
-                            objectViewItem.Data.Obj = EditorGUI.ObjectField(objectRect, objectViewItem.Data.Obj, typeof(UnityEngine.Object), false);
-                        }
+                            objectViewItem.Data.Obj = EditorGUI.ObjectField(objectRect, objectViewItem.Data.Obj, typeof(Object), false);
                             break;
                         case EColumns.AssetPath:
                             EditorGUI.SelectableLabel(rect, AssetDatabase.GetAssetPath(objectViewItem.Data.Obj), EditorStyles.textField);
@@ -275,8 +318,23 @@ namespace SimpleBookmarks.Editor
                         case EColumns.Note:
                             objectViewItem.Data.note = EditorGUI.TextField(rect, objectViewItem.Data.note);
                             break;
-                        default:
-                            throw new ArgumentOutOfRangeException(nameof(columns), columns, null);
+                    }
+                    break;
+                case SubObjectViewItem objectViewItem:
+                    switch (columns)
+                    {
+                        case EColumns.Object:
+                            var objectRect = rect;
+                            objectRect.x += indent;
+                            objectRect.width = rect.width - indent;
+                            var oriGUIEnable = GUI.enabled;
+                            GUI.enabled = false;
+                            EditorGUI.ObjectField(objectRect, objectViewItem.Object, typeof(Object), false);
+                            GUI.enabled = oriGUIEnable;
+                            break;
+                        case EColumns.AssetPath:
+                            EditorGUI.SelectableLabel(rect, AssetDatabase.GetAssetPath(objectViewItem.Object), EditorStyles.textField);
+                            break;
                     }
                     break;
             }
@@ -288,7 +346,8 @@ namespace SimpleBookmarks.Editor
         
         protected override bool CanStartDrag(CanStartDragArgs args)
         {
-            return !hasSearch;
+            var hasSubObjectViewItem = args.draggedItemIDs.Any(id => FindItem(id, rootItem) is SubObjectViewItem);
+            return !hasSearch && !hasSubObjectViewItem;
         }
 
         protected override void SetupDragAndDrop(SetupDragAndDropArgs args)
@@ -346,7 +405,7 @@ namespace SimpleBookmarks.Editor
                                 {
                                     foreach (var obj in DragAndDrop.objectReferences)
                                     {
-                                        if (g.items[i].Equals(new Item() { Obj = obj }))
+                                        if (g.items[i].Equals(new Item { Obj = obj }))
                                             g.items.RemoveAt(i);
                                     }
                                 }
@@ -369,7 +428,7 @@ namespace SimpleBookmarks.Editor
                                 for (var i = 0; i < DragAndDrop.objectReferences.Length; i++)
                                 {
                                     var preferIndex = GetPreferIndex(parentItem.Data.items, insertIndex + i);
-                                    parentItem.Data.items.Insert(preferIndex, new Item() { Obj = DragAndDrop.objectReferences[i] });
+                                    parentItem.Data.items.Insert(preferIndex, new Item { Obj = DragAndDrop.objectReferences[i] });
                                 }
                             }
                         }
@@ -378,7 +437,7 @@ namespace SimpleBookmarks.Editor
                             if (dragFromTreeView)
                                 parentItem.Data.items.AddRange(draggedItems);
                             else
-                                parentItem.Data.items.AddRange(DragAndDrop.objectReferences.Select(o=> new Item(){Obj = o}));
+                                parentItem.Data.items.AddRange(DragAndDrop.objectReferences.Select(o=> new Item {Obj = o}));
                         }
                         
                         _bookmarksContainer.Save();
@@ -407,8 +466,8 @@ namespace SimpleBookmarks.Editor
             return treeViewItem switch
             {
                 GroupViewItem groupViewItem => groupViewItem,
-                ObjectViewItem objectViewItem => objectViewItem.parent as GroupViewItem,
-                _ => (GroupViewItem)GetRows()[0]
+                null => (GroupViewItem)GetRows()[0],
+                _ => GetParentViewItem(treeViewItem.parent)
             };
         }
 
@@ -454,5 +513,15 @@ namespace SimpleBookmarks.Editor
     public class ObjectViewItem : TreeViewItem
     {
         internal Item Data;
+    }
+    
+    public class SubObjectViewItem : TreeViewItem
+    {
+        internal readonly Object Object;
+
+        internal SubObjectViewItem(Object obj)
+        {
+            Object = obj;
+        }
     }
 }
